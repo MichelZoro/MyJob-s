@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Horas y Changas</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
+        h2 { text-align: center; color: #222; }
+        .panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
+        input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+        button { background-color: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #218838; }
+        .btn-secundario { background-color: #007bff; }
+        .btn-secundario:hover { background-color: #0069d9; }
+        .btn-borrar { background-color: #dc3545; padding: 5px 10px; font-size: 12px; }
+        .btn-borrar:hover { background-color: #c82333; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .totales { font-weight: bold; background-color: #e9ecef !important; font-size: 15px; }
+        .pago { font-weight: bold; background-color: #d4edda !important; color: #155724; font-size: 15px; }
+        .total-general { font-weight: bold; background-color: #155724 !important; color: white; font-size: 16px; }
+        @media print {
+            .no-print { display: none; }
+            body { background: white; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Registro de Horas y Changas</h2>
+
+    <div class="panel no-print">
+        <input type="date" id="fecha">
+        <select id="dia">
+            <option value="Lunes">Lunes</option>
+            <option value="Martes">Martes</option>
+            <option value="Miércoles">Miércoles</option>
+            <option value="Jueves">Jueves</option>
+            <option value="Viernes">Viernes</option>
+            <option value="Sábado">Sábado</option>
+            <option value="Domingo">Domingo</option>
+        </select>
+        <input type="text" id="alberto" placeholder="Alberto (ej. 8.3)">
+        <input type="text" id="raquel" placeholder="Changa Raquel (ej. 8)">
+        <input type="text" id="nahuel" placeholder="Changa Nahuel (ej. 7.5)">
+        <button onclick="agregarFila()">+ Agregar Día</button>
+    </div>
+
+    <div class="panel no-print">
+        <label for="valorHora"><strong>Valor por hora ($):</strong></label>
+        <input type="number" id="valorHora" placeholder="Ej. 5000" oninput="renderizarTabla()">
+        <button class="btn-secundario" onclick="exportarCSV()">Descargar Excel (CSV)</button>
+        <button class="btn-secundario" onclick="window.print()">Imprimir / Guardar PDF</button>
+    </div>
+
+    <table id="tablaHoras">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Días</th>
+                <th>ALBERTO</th>
+                <th>Changa (Raquel)</th>
+                <th>Changa (Nahuel)</th>
+                <th class="no-print">Acción</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpoTabla"></tbody>
+        <tfoot>
+            <tr class="totales">
+                <td colspan="2">TOTAL HORAS POR PERSONA</td>
+                <td id="totalAlberto">0</td>
+                <td id="totalRaquel">0</td>
+                <td id="totalNahuel">0</td>
+                <td class="no-print"></td>
+            </tr>
+            <tr class="pago">
+                <td colspan="2">SUBTOTAL A COBRAR ($)</td>
+                <td id="pagoAlberto">$0.00</td>
+                <td id="pagoRaquel">$0.00</td>
+                <td id="pagoNahuel">$0.00</td>
+                <td class="no-print"></td>
+            </tr>
+            <tr class="total-general">
+                <td colspan="2">TOTAL GENERAL (TODOS)</td>
+                <td id="totalHorasGeneral" colspan="1">0 hrs</td>
+                <td id="totalDineroGeneral" colspan="2">$0.00</td>
+                <td class="no-print"></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <script>
+        const datosIniciales = [
+            { fecha: "", dia: "Domingo", alberto: "8.3", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Domingo", alberto: "9.3", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Lunes", alberto: "8", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Martes", alberto: "7.4", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Miércoles", alberto: "No trabajamos", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Jueves", alberto: "8", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Viernes", alberto: "10", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Sábado", alberto: "6", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Domingo", alberto: "9", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Lunes", alberto: "8", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Martes", alberto: "7.3", raquel: "", nahuel: "" },
+            { fecha: "", dia: "Miércoles", alberto: "", raquel: "", nahuel: "" }
+        ];
+
+        let registros = JSON.parse(localStorage.getItem('misHorasV2')) || datosIniciales;
+        const savedValorHora = localStorage.getItem('valorHoraV2');
+        if (savedValorHora) {
+            document.getElementById('valorHora').value = savedValorHora;
+        }
+
+        function renderizarTabla() {
+            const tbody = document.getElementById('cuerpoTabla');
+            tbody.innerHTML = '';
+            let sumAlberto = 0, sumRaquel = 0, sumNahuel = 0;
+
+            registros.forEach((fila, index) => {
+                sumAlberto += parseFloat(fila.alberto) || 0;
+                sumRaquel += parseFloat(fila.raquel) || 0;
+                sumNahuel += parseFloat(fila.nahuel) || 0;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td contenteditable="true" onblur="editarCelda(${index}, 'fecha', this.innerText)">${fila.fecha || ''}</td>
+                    <td contenteditable="true" onblur="editarCelda(${index}, 'dia', this.innerText)">${fila.dia}</td>
+                    <td contenteditable="true" onblur="editarCelda(${index}, 'alberto', this.innerText)">${fila.alberto}</td>
+                    <td contenteditable="true" onblur="editarCelda(${index}, 'raquel', this.innerText)">${fila.raquel}</td>
+                    <td contenteditable="true" onblur="editarCelda(${index}, 'nahuel', this.innerText)">${fila.nahuel}</td>
+                    <td class="no-print"><button class="btn-borrar" onclick="borrarFila(${index})">X</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const valorHora = parseFloat(document.getElementById('valorHora').value) || 0;
+            localStorage.setItem('valorHoraV2', document.getElementById('valorHora').value);
+
+            const pagoAlberto = sumAlberto * valorHora;
+            const pagoRaquel = sumRaquel * valorHora;
+            const pagoNahuel = sumNahuel * valorHora;
+
+            const totalHorasTodos = sumAlberto + sumRaquel + sumNahuel;
+            const totalDineroTodos = pagoAlberto + pagoRaquel + pagoNahuel;
+
+            document.getElementById('totalAlberto').innerText = sumAlberto.toFixed(2);
+            document.getElementById('totalRaquel').innerText = sumRaquel.toFixed(2);
+            document.getElementById('totalNahuel').innerText = sumNahuel.toFixed(2);
+
+            document.getElementById('pagoAlberto').innerText = '$' + pagoAlberto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('pagoRaquel').innerText = '$' + pagoRaquel.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('pagoNahuel').innerText = '$' + pagoNahuel.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+            document.getElementById('totalHorasGeneral').innerText = totalHorasTodos.toFixed(2) + ' hrs';
+            document.getElementById('totalDineroGeneral').innerText = '$' + totalDineroTodos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+            localStorage.setItem('misHorasV2', JSON.stringify(registros));
+        }
+
+        function agregarFila() {
+            const fecha = document.getElementById('fecha').value;
+            const dia = document.getElementById('dia').value;
+            const alberto = document.getElementById('alberto').value.replace(',', '.');
+            const raquel = document.getElementById('raquel').value.replace(',', '.');
+            const nahuel = document.getElementById('nahuel').value.replace(',', '.');
+
+            registros.push({ fecha, dia, alberto, raquel, nahuel });
+            
+            document.getElementById('alberto').value = '';
+            document.getElementById('raquel').value = '';
+            document.getElementById('nahuel').value = '';
+            renderizarTabla();
+        }
+
+        function editarCelda(index, campo, valor) {
+            registros[index][campo] = valor.trim().replace(',', '.');
+            renderizarTabla();
+        }
+
+        function borrarFila(index) {
+            registros.splice(index, 1);
+            renderizarTabla();
+        }
+
+        function exportarCSV() {
+            let csv = "Fecha;Dia;ALBERTO;Changa (Raquel);Changa (Nahuel)\n";
+            registros.forEach(r => {
+                csv += `${r.fecha || ''};${r.dia};${r.alberto};${r.raquel};${r.nahuel}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
